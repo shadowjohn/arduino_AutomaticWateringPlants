@@ -19,6 +19,15 @@ static int now_GroundHumidity = 0;
 DHT dht(dhtPin, dhtType);
 ESP8266WiFiMulti WiFiMulti;
 
+//增加保護
+//每一小時最多澆3次水
+//一小時有120次30秒，超過就歸零
+static int watering_times=0; // max 3
+static int counts = 0; //計算幾次
+static String plants_name = "3WA_Plants";
+//資料傳輸
+static HTTPClient http;
+static String URL = "http://3wa.tw/my_plants/api.php?mode=setData";
 void setup() {
     Serial.begin(115200);
    // Serial.setDebugOutput(true);
@@ -82,15 +91,33 @@ void loop() {
     //取得土壤濕度
     getGroundHumidity();
     //如果太乾，> 1000，蜂嗚器嗶個3秒，提示準備打水
-    if( now_GroundHumidity > 1000 )
+    if( now_GroundHumidity > 1000 && watering_times < 3 )
     {
       playWater();
+      watering_times = watering_times + 1; //澆了一次水
+      if((WiFiMulti.run() == WL_CONNECTED)) 
+      {
+        //有網路，回報澆水
+        String data = "&plants_name="+plants_name+"&humidity="+String(now_Humidity)+"&temperature="+String(now_Temperature)+"&groundhumidity="+String(now_GroundHumidity)+"&is_watering=1";        
+        http.begin(URL+data); //HTTP
+        int httpCode = http.GET(); // 如果是 200 就對 
+      }
     }
-    if((WiFiMulti.run() == WL_CONNECTED)) {
+    if((WiFiMulti.run() == WL_CONNECTED)) 
+    {
         //HTTPClient http;
         Serial.printf("成功連上網路...\n");
         //有網路連線
+        String data = "&plants_name="+plants_name+"&humidity="+String(now_Humidity)+"&temperature="+String(now_Temperature)+"&groundhumidity="+String(now_GroundHumidity)+"&is_watering=0";
+        http.begin(URL+data); //HTTP
+        int httpCode = http.GET(); // 如果是 200 就對        
     }
     delay(30000); //等30秒
+    counts = counts + 1;
+    counts = counts % 120;
+    if(counts==0)
+    {
+      watering_times = 0;      
+    }
 }
 
