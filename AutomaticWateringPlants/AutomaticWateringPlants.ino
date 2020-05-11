@@ -9,9 +9,6 @@
 #define dhtType DHT11 //類型是 DHT11
 static float now_Humidity = 0;
 static float now_Temperature = 0; 
-// 土壤溼度角位
-#define GWetPin A0
-static int now_GroundHumidity = 0;
 // 蜂嗚器角位
 #define BiBiPin D2 
 // 澆水器角位
@@ -21,8 +18,11 @@ ESP8266WiFiMulti WiFiMulti;
 
 //增加保護
 //每一小時最多澆3次水
-//一小時有120次30秒，超過就歸零
-static int watering_times=0; // max 3
+//一小時有120次30秒
+//一天有120*24次30秒=2880
+//改成一天只繞二次
+//所以是1440
+static int watering_times=0; // max 2880
 static int counts = 0; //計算幾次
 static String plants_name = "3WA_Plants";
 //資料傳輸
@@ -39,13 +39,11 @@ void setup() {
         Serial.flush();
         delay(500);
     }
-    pinMode(BiBiPin,OUTPUT); //蜂嗚角要設輸出
-    pinMode(GWetPin,INPUT); //土壤接角要設讀取
+    pinMode(BiBiPin,OUTPUT); //蜂嗚角要設輸出    
     digitalWrite(BiBiPin,LOW);
     pinMode(WaterPin,OUTPUT); //澆水器要設輸出
     now_Humidity = 0;
-    now_Temperature = 0;
-    now_GroundHumidity = 0;
+    now_Temperature = 0;    
     dht.begin(); //啟動 dht
     WiFiMulti.addAP("3wa_hinet", "0919566444");
 }
@@ -59,16 +57,6 @@ void getDht()
   Serial.print("\n");
   Serial.print("溫度 Temperature: ");
   Serial.print(now_Temperature);
-  Serial.print("\n");
-}
-void getGroundHumidity()
-{
-  // 低於700 土很溼，數值越小，越溼，剛淋完水的土，也許會低到250左右
-  // 土壤溼度適中 450~900 之間
-  // 高於1000 土偏乾
-  now_GroundHumidity = analogRead(GWetPin);
-  Serial.print("土壤濕度 Ground Humidity: ");
-  Serial.print(now_GroundHumidity);
   Serial.print("\n");
 }
 void playWater()
@@ -87,34 +75,31 @@ void loop() {
     //停止澆水
     digitalWrite(WaterPin,LOW);
     //取得溫濕度計
-    getDht();
-    //取得土壤濕度
-    getGroundHumidity();
-    //如果太乾，> 900，蜂嗚器嗶個3秒，提示準備打水
-    if( now_GroundHumidity > 900 && watering_times < 3 )
+    getDht();    
+    if( watering_times == 0 )
     {
       playWater();
       watering_times = watering_times + 1; //澆了一次水
       if((WiFiMulti.run() == WL_CONNECTED)) 
       {
         //有網路，回報澆水
-        String data = "&plants_name="+plants_name+"&humidity="+String(now_Humidity)+"&temperature="+String(now_Temperature)+"&groundhumidity="+String(now_GroundHumidity)+"&is_watering=1";        
+        String data = "&plants_name="+plants_name+"&humidity="+String(now_Humidity)+"&temperature="+String(now_Temperature)+"&is_watering=1";        
         http.begin(URL+data); //HTTP
         int httpCode = http.GET(); // 如果是 200 就對 
       }
     }
-    if((WiFiMulti.run() == WL_CONNECTED)) 
+    else if((WiFiMulti.run() == WL_CONNECTED)) 
     {
         //HTTPClient http;
         Serial.printf("成功連上網路...\n");
         //有網路連線
-        String data = "&plants_name="+plants_name+"&humidity="+String(now_Humidity)+"&temperature="+String(now_Temperature)+"&groundhumidity="+String(now_GroundHumidity)+"&is_watering=0";
+        String data = "&plants_name="+plants_name+"&humidity="+String(now_Humidity)+"&temperature="+String(now_Temperature)+"&is_watering=0";
         http.begin(URL+data); //HTTP
         int httpCode = http.GET(); // 如果是 200 就對        
     }
     delay(30000); //等30秒
     counts = counts + 1;
-    counts = counts % 120;
+    counts = counts % 1440;
     if(counts==0)
     {
       watering_times = 0;      
