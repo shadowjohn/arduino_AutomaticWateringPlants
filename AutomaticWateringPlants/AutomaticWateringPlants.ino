@@ -90,8 +90,8 @@ void loop() {
     getDht();
     //取得土壤濕度
     getGroundHumidity();
-    //如果太乾，> 1000，蜂嗚器嗶個3秒，提示準備打水
-    if( now_GroundHumidity > 1000 && watering_times < 3 )
+    //如果太乾，> 900，蜂嗚器嗶個3秒，提示準備打水
+    if( now_GroundHumidity > 900 && watering_times < 3 )
     {
       playWater();
       watering_times = watering_times + 1; //澆了一次水
